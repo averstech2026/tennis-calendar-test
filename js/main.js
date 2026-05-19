@@ -80,6 +80,8 @@ function updateDefaultPrice() {
   }
 }
 
+// Внутри js/main.js
+
 function saveData() {
   const price = parseFloat(document.getElementById('priceInput').value);
   const hours = parseFloat(document.getElementById('hoursInput').value);
@@ -88,32 +90,75 @@ function saveData() {
   const location = locSel === 'другое' ? (document.getElementById('customLocation').value || 'другое') : locSel;
   const guests = parseInt(document.getElementById('guestInput').value) || 0;
   
-  const entry = { price, hours, location, time, guests };
   const monthIdx = parseInt(document.getElementById('monthSelect').value);
-  const targetWeekday = new Date(2026, monthIdx, state.selectedDayNum).getDay();
+  const [h, m] = time.split(':').map(Number);
+  
+  // === 1. ГОТОВИМ TIMESTAMP ДЛЯ ТЕКУЩЕГО ВЫБРАННОГО ДНЯ ===
+  const eventDate = new Date(2026, monthIdx, state.selectedDayNum, h, m);
+  const timestamp = eventDate.getTime();
+
+  // Формируем объект тренировки (уже с таймстампом)
+  const entry = { price, hours, location, time, guests, timestamp };
+  
+  const targetWeekday = eventDate.getDay();
   state.lastUsedByWeekday[targetWeekday] = { price, hours, location, time };
 
-  if (!state.schedule[state.selectedDayNum]) state.schedule[state.selectedDayNum] = [];
+  if (!state.schedule[state.selectedDayNum]) {
+    state.schedule[state.selectedDayNum] = [];
+  }
 
+  // === 2. ОБНОВЛЯЕМ СОХРАНЕНИЕ В ОБЪЕКТ state.schedule ===
   if (document.getElementById('batchCheck').checked) {
+    // ПАКЕТНОЕ СОХРАНЕНИЕ (на весь месяц по дням недели)
     const daysInMonth = new Date(2026, monthIdx + 1, 0).getDate();
+    
     for (let d = 1; d <= daysInMonth; d++) {
       if (new Date(2026, monthIdx, d).getDay() === targetWeekday) {
         if (!state.schedule[d]) state.schedule[d] = [];
+        
+        // Для каждого дня в серии генерируем свой уникальный timestamp
+        const dDate = new Date(2026, monthIdx, d, h, m);
+        const batchTimestamp = dDate.getTime();
+
+        // Проверяем, есть ли уже тренировка в этот день на то же самое время
         const existsIdx = state.schedule[d].findIndex(e => e.time === time);
+        
         if (existsIdx > -1) {
-          state.schedule[d][existsIdx] = { ...entry, guests: (d === state.selectedDayNum ? guests : state.schedule[d][existsIdx].guests) };
+          // Если тренировка на это время уже есть — обновляем её (сохраняя гостей, если это не текущий день)
+          state.schedule[d][existsIdx] = { 
+            ...entry, 
+            timestamp: batchTimestamp,
+            guests: (d === state.selectedDayNum ? guests : state.schedule[d][existsIdx].guests) 
+          };
         } else {
-          state.schedule[d].push({ ...entry, guests: (d === state.selectedDayNum ? guests : 0) });
+          // Корректировка логики из леджера исправлений:
+          // Пакетное заполнение заполняет только ПУСТЫЕ дни недели, не перезаписывая дни, где уже есть другие тренировки
+          if (state.schedule[d].length === 0 || d === state.selectedDayNum) {
+            state.schedule[d].push({ 
+              ...entry, 
+              timestamp: batchTimestamp,
+              guests: (d === state.selectedDayNum ? guests : 0) 
+            });
+          }
         }
+        // Сортируем тренировки внутри дня по времени
         state.schedule[d].sort((a, b) => a.time.localeCompare(b.time));
       }
     }
   } else {
-    if (state.activeEntryIndex === -1) state.schedule[state.selectedDayNum].push(entry);
-    else state.schedule[state.selectedDayNum][state.activeEntryIndex] = entry;
+    // ОБЫЧНОЕ СОХРАНЕНИЕ ОДНОГО ДНЯ
+    if (state.activeEntryIndex === -1) {
+      // Создание новой тренировки в текущем дне
+      state.schedule[state.selectedDayNum].push(entry);
+    } else {
+      // Обновление существующей тренировки в текущем дне
+      state.schedule[state.selectedDayNum][state.activeEntryIndex] = entry;
+    }
+    // Сортируем тренировки внутри дня по времени
     state.schedule[state.selectedDayNum].sort((a, b) => a.time.localeCompare(b.time));
   }
+  
+  // === 3. ОТПРАВКА ДАННЫХ В СЕТЬ И ОБНОВЛЕНИЕ ИНТЕРФЕЙСА ===
   saveDataToStorage(); 
   deselect();
 }
