@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Теннисный Календарь Pro</title>
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+  
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <div class="container" id="appContainer">
+    <h1 style="text-align: center; color: #1a237e; font-size: 16px; margin: 0 0 15px 0; font-weight: 700; letter-spacing: 0.5px;">
+      Расписание тренировок с ТА
+    </h1>
+    
+    <div class="header">
+      <select id="monthSelect">
+        <option value="0">Январь 2026</option>
+        <option value="1">Февраль 2026</option>
+        <option value="2">Март 2026</option>
+        <option value="3">Апрель 2026</option>
+        <option value="4" selected>Май 2026</option>
+        <option value="5">Июнь 2026</option>
+        <option value="6">Июль 2026</option>
+        <option value="7">Август 2026</option>
+        <option value="8">Сентябрь 2026</option>
+        <option value="9">Октябрь 2026</option>
+        <option value="10">Ноябрь 2026</option>
+        <option value="11">Декабрь 2026</option>
+      </select>
+      <button class="btn-view-schedule" id="viewScheduleBtn">График</button>
+      <button class="btn-reset-top" id="resetTopBtn">Сброс</button>
+    </div>
+
+    <div class="calendar" id="calendar">Загрузка...</div>
+
+    <div class="editor-panel" id="editorPanel">
+      <div class="tabs-row" id="tabsRow"></div>
+
+      <div class="location-row">
+        <div style="display: flex; flex-direction: column;">
+          <span class="stepper-label">Локация</span>
+          <select id="locationSelect" style="width:100%; height:40px; border-radius:12px; border:1px solid #e2e8f0; padding:0 10px; outline:none;">
+            <option value="дутик грунт">дутик грунт</option>
+            <option value="тенн.центр">тенн.центр</option>
+            <option value="улица грунт">улица грунт</option>
+            <option value="дутик хард">дутик хард</option>
+            <option value="другое">другое (ввести...)</option>
+          </select>
+          <input type="text" id="customLocation" placeholder="Назовите локацию" style="display:none; width:100%; height:36px; border-radius:10px; border:1px solid #e2e8f0; padding:0 10px; box-sizing: border-box; outline:none; text-align:center; margin-top: 4px;">
+        </div>
+        <div class="stepper-container">
+          <span class="stepper-label">Цена</span>
+          <div class="stepper">
+            <button class="stepper-btn" id="priceMinus">−</button>
+            <input type="number" id="priceInput" class="stepper-input" value="2200" readonly>
+            <button class="stepper-btn" id="pricePlus">+</button>
+          </div>
+        </div>
+        <button class="btn-hide-editor" id="hideEditorBtn">▾</button>
+      </div>
+     
+      <div class="editor-grid-row">
+        <div class="stepper-container">
+          <span class="stepper-label">Часы</span>
+          <div class="stepper">
+            <button class="stepper-btn" id="hoursMinus">−</button>
+            <input type="text" id="hoursInput" class="stepper-input" value="1" readonly>
+            <button class="stepper-btn" id="hoursPlus">+</button>
+          </div>
+        </div>
+        <div class="stepper-container">
+          <span class="stepper-label">Начало</span>
+          <div class="stepper">
+            <button class="stepper-btn" id="timeMinus">−</button>
+            <input type="text" id="timeInput" class="stepper-input" value="19:00" readonly>
+            <button class="stepper-btn" id="timePlus">+</button>
+          </div>
+        </div>
+        <div class="stepper-container guest-field">
+          <span class="stepper-label">Гость</span>
+          <div class="stepper">
+            <button class="stepper-btn" id="guestMinus">−</button>
+            <input type="number" id="guestInput" class="stepper-input" value="0" readonly>
+            <button class="stepper-btn" id="guestPlus">+</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="button-group">
+        <button class="btn-save" id="saveBtn">Сохранить</button>
+        <label class="toggle-container" id="batchWrap">
+          <input type="checkbox" id="batchCheck">
+          <div class="checkbox-custom"></div>
+          <span class="toggle-label" id="batchLabel">+ Все субб</span>
+        </label>
+        <button class="btn-delete" id="deleteBtn">✕</button>
+      </div>
+    </div>
+
+    <div class="total-footer">
+      <div class="player-row">
+        <span class="total-label" style="display: block; margin-bottom: 6px;">Постоянных игроков</span>
+        <div class="stepper">
+          <button class="stepper-btn" id="playerMinus">-</button>
+          <input type="number" id="playerCount" class="stepper-input" value="2" readonly>
+          <button class="stepper-btn" id="playerPlus">+</button>
+        </div>
+      </div>
+      <div class="total-grid">
+        <div class="total-item">
+          <span class="total-label" id="mainTotalLabel">Весь месяц</span>
+          <span class="total-val" id="grandTotal">0 ₽</span>
+        </div>
+        <div class="total-item">
+          <span class="total-label">Моя доля</span>
+          <span class="total-val val-highlight" id="perPlayerTotal">0 ₽</span>
+        </div>
+      </div>
+      <div id="mainGuestSummary" class="guest-summary-box" style="display:none;"></div>
+    </div>
+  </div>
+
+  <div class="modal" id="scheduleModal">
+    <div class="modal-content" id="pdfContent">
+      <div class="modal-header">
+        <h3 id="modalTitle" style="margin:0; color:#1a237e; font-size: 16px;">График тренировок</h3>
+        <span class="close-modal" id="closeModalBtn">&times;</span>
+      </div>
+      <div class="modal-body" id="scheduleList"></div>
+      <div class="modal-footer-sticky">
+        <div id="summaryBlock"></div>
+        <button class="btn-pdf" id="exportPdfBtn" style="margin-top:10px;">Скачать PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
