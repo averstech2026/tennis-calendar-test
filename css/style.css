@@ -101,7 +101,6 @@ body {
 .date-cell.active { border-color: #1a237e; background: #eff2ff; }
 .date-cell.active.has-guest {
   border: 2px dashed #dc2626; /* Яркий красный пунктир для выбранной ячейки с гостем */
-  background: #fff5f5;        /* Нежно-розовый фон, чтобы отличаться от обычного синего */
 }
 .date-cell.saved { background: #4caf50; color: white; box-shadow: 0 4px 10px rgba(76, 175, 80, 0.2); }
 .date-cell.has-guest { border: 2px dashed #ff4444; }
