@@ -1,3 +1,4 @@
+// js/ui.js
 import { monthNamesGenitive, monthNamesSchedule, locationPrices } from './config.js';
 
 // Хелпер сокращения названий локаций
@@ -214,12 +215,6 @@ export function renderEditor(state, onTabSelect) {
 
 /**
  * Показ модального окна "График" со списком всех записей
- */
-// Внутри js/ui.js
-import { monthNamesGenitive, monthNamesSchedule } from './config.js';
-
-/**
- * Показ модального окна "График" со списком всех записей
  * Адаптировано под массивы тренировок (несколько событий в день)
  */
 export function showSchedule(state) {
@@ -360,5 +355,4 @@ export function exportToPDF() {
     };
     window.html2pdf().from(modalContent).set(opt).save();
   }
-}
 }
