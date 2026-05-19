@@ -285,74 +285,97 @@ export function showSchedule(state) {
  * Экспорт сформированного графика в формат PDF
  * Адаптировано под мобильные устройства и десктоп
  */
+/**
+ * Экспорт сформированного графика в формат PDF
+ * Исправлена проблема белого листа на десктопе за счет нормализации контейнера перед снимком
+ */
 export function exportToPDF() {
   const modal = document.getElementById('scheduleModal');
   const modalContent = document.getElementById('pdfContent');
   const monthIdx = document.getElementById('monthSelect').value;
   const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
-  if (isMobile) {
-    const footer = modalContent.querySelector('.modal-footer-sticky');
-    const body = modalContent.querySelector('.modal-body');
-    const hideElements = modalContent.querySelectorAll('.close-modal, .btn-pdf');
-    
-    // Прячем элементы управления на время снимка
-    hideElements.forEach(el => el.style.opacity = '0');
+  // Общие элементы, которые нужно спрятать при генерации (кнопки, крестик закрытия)
+  const footer = modalContent.querySelector('.modal-footer-sticky');
+  const body = modalContent.querySelector('.modal-body');
+  const hideElements = modalContent.querySelectorAll('.close-modal, .btn-pdf');
+  
+  // Прячем кнопки управления на время снимка
+  hideElements.forEach(el => el.style.opacity = '0');
 
-    const originalModalStyle = modalContent.getAttribute('style') || '';
-    const originalFooterStyle = footer.getAttribute('style') || '';
-    const originalBodyStyle = body.getAttribute('style') || '';
-    const originalModalDisplay = modal.style.backdropFilter;
+  // Сохраняем исходные стили UI для последующего восстановления
+  const originalModalStyle = modalContent.getAttribute('style') || '';
+  const originalFooterStyle = footer ? footer.getAttribute('style') || '' : '';
+  const originalBodyStyle = body ? body.getAttribute('style') || '' : '';
+  const originalModalDisplay = modal.style.backdropFilter;
 
-    // Временная перестройка DOM для качественного рендеринга на мобильном экране
-    modal.style.backdropFilter = 'none';
-    modalContent.style.width = '400px';
-    modalContent.style.height = 'auto';
-    modalContent.style.maxHeight = 'none';
-    modalContent.style.display = 'block';
-    modalContent.style.overflow = 'visible';
-    modalContent.style.boxShadow = 'none';
+  // Временная нормализация DOM для качественного рендеринга html2canvas
+  modal.style.backdropFilter = 'none';
+  modalContent.style.width = '450px'; // Фиксированная ширина для красивой плотности текста в PDF
+  modalContent.style.height = 'auto';
+  modalContent.style.maxHeight = 'none';
+  modalContent.style.display = 'block';
+  modalContent.style.overflow = 'visible';
+  modalContent.style.boxShadow = 'none';
 
+  if (body) {
     body.style.overflow = 'visible';
     body.style.height = 'auto';
     body.style.maxHeight = 'none';
+  }
 
+  if (footer) {
     footer.style.position = 'relative'; 
     footer.style.marginTop = '20px';
+  }
 
+  if (isMobile) {
+    // Настройки экспорта для смартфонов (подгонка под экран мобильного)
     const opt = {
       margin: [15, 0, 15, 0],
       filename: `Tennis_Schedule_${monthNamesGenitive[monthIdx]}.pdf`,
       image: { type: 'jpeg', quality: 1 },
       html2canvas: { 
-        scale: 2, useCORS: true, logging: false, width: 400, windowWidth: 400,
+        scale: 2, useCORS: true, logging: false, width: 450, windowWidth: 450,
         scrollY: -window.scrollY,
         onclone: (clonedDoc) => {
           const clonedBtn = clonedDoc.querySelector('.btn-pdf');
           if (clonedBtn) clonedBtn.style.display = 'none';
         }
       },
-      jsPDF: { unit: 'px', format: [400, modalContent.offsetHeight + 100], hotfixes: ['px_scaling'] }
+      jsPDF: { unit: 'px', format: [450, modalContent.offsetHeight + 80], hotfixes: ['px_scaling'] }
     };
 
     window.html2pdf().set(opt).from(modalContent).save().then(() => {
-      // Полное восстановление исходного адаптивного UI
-      hideElements.forEach(el => el.style.opacity = '1');
-      modalContent.setAttribute('style', originalModalStyle);
-      footer.setAttribute('style', originalFooterStyle);
-      body.setAttribute('style', originalBodyStyle);
-      modal.style.backdropFilter = originalModalDisplay;
+      restoreUI();
     });
 
   } else {
-    // Высококачественный экспорт для Desktop
+    // Высококачественный экспорт для Десктопа (стандартный лист А4 вертикальный)
     const opt = {
-      margin: 15,
+      margin: [0.5, 0.5, 0.5, 0.5], // аккуратные поля по полдюйма со всех сторон
       filename: `Tennis_Schedule_${monthNamesGenitive[monthIdx]}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2 },
+      html2canvas: { 
+        scale: 2, 
+        useCORS: true, 
+        logging: false,
+        scrollY: -window.scrollY 
+      },
       jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
     };
-    window.html2pdf().from(modalContent).set(opt).save();
+
+    window.html2pdf().set(opt).from(modalContent).save().then(() => {
+      restoreUI();
+    });
+  }
+
+  // Внутренняя функция для возврата интерфейса в исходное состояние
+  function restoreUI() {
+    hideElements.forEach(el => el.style.opacity = '1');
+    modalContent.setAttribute('style', originalModalStyle);
+    if (footer) footer.setAttribute('style', originalFooterStyle);
+    if (body) body.setAttribute('style', originalBodyStyle);
+    modal.style.backdropFilter = originalModalDisplay;
   }
 }
