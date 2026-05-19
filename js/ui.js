@@ -215,30 +215,52 @@ export function renderEditor(state, onTabSelect) {
 /**
  * Показ модального окна "График" со списком всех записей
  */
+// Внутри js/ui.js
+import { monthNamesGenitive, monthNamesSchedule } from './config.js';
+
+/**
+ * Показ модального окна "График" со списком всех записей
+ * Адаптировано под массивы тренировок (несколько событий в день)
+ */
 export function showSchedule(state) {
   const list = document.getElementById('scheduleList'); 
   list.innerHTML = '';
+  
   const monthIdx = parseInt(document.getElementById('monthSelect').value);
   const basePlayers = parseInt(document.getElementById('playerCount').value) || 1;
   const sortedDays = Object.keys(state.schedule).sort((a, b) => a - b);
   
   document.getElementById('modalTitle').innerText = `График тренировок в ${monthNamesGenitive[monthIdx]}`;
   
-  let myTotal = 0, fullCost = 0, count = 0;
+  let myTotal = 0, fullCost = 0, totalSessions = 0;
+  
+  // 1. Сначала считаем общее количество тренировок для правильного расчета индекса последнего элемента
+  sortedDays.forEach(d => totalSessions += state.schedule[d].length);
+
+  let currentSessionIdx = 0;
+
+  // 2. Перебираем дни, а внутри них — каждую тренировку
   sortedDays.forEach(d => {
     state.schedule[d].forEach(item => {
-      count++;
       const date = new Date(2026, monthIdx, d);
       const dayName = date.toLocaleDateString('ru-RU', { weekday: 'long' });
       const cost = item.hours * item.price; 
       const share = cost / (basePlayers + item.guests);
+      
       myTotal += share; 
       fullCost += cost;
 
-      let gInfo = item.guests > 0 ? `<div class="sch-guest-money">👤 Гости: +${item.guests} (С гостя: ${Math.round(share)} ₽)</div><div class="sch-saving">экономия напарникам: по ${Math.round((share * item.guests) / basePlayers)} ₽</div>` : '';
+      // Красивое скрытие нижней границы у самого последнего элемента списка
+      const isLast = currentSessionIdx === totalSessions - 1;
+      const borderStyle = isLast ? 'border-bottom: none;' : 'border-bottom: 1px solid #f1f5f9;';
+      currentSessionIdx++;
+
+      let gInfo = item.guests > 0 ? `
+        <div class="sch-guest-money">👤 Гости: +${item.guests} (С гостя: ${Math.round(share)} ₽)</div>
+        <div class="sch-saving">экономия напарникам: по ${Math.round((share * item.guests) / basePlayers)} ₽</div>` : '';
       
       list.innerHTML += `
-        <div class="schedule-item">
+        <div class="schedule-item" style="${borderStyle} padding: 12px 0; line-height: 1.3;">
           <div class="sch-date">${d} ${monthNamesSchedule[monthIdx]}, ${dayName} — ${item.time}</div>
           <div class="sch-loc">
             <span class="sch-cost-detail">${Math.round(cost).toLocaleString()} ₽</span>
@@ -252,7 +274,7 @@ export function showSchedule(state) {
   document.getElementById('summaryBlock').innerHTML = `
     <div style="margin-top: 15px; border-top: 2px solid #f1f5f9; padding-top: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
       <div style="display: flex; flex-direction: column; align-items: center;">
-        <span style="font-size: 10px; color: #94a3b8; text-transform: uppercase; font-weight: 800; text-align: center;">Всего за ${count} тр.</span>
+        <span style="font-size: 10px; color: #94a3b8; text-transform: uppercase; font-weight: 800; text-align: center;">В ${monthNamesGenitive[monthIdx]} за ${totalSessions} тр.</span>
         <span style="font-size: 20px; font-weight: 800; color: #1e293b;">${Math.round(fullCost).toLocaleString()} ₽</span>
       </div>
       <div style="display: flex; flex-direction: column; align-items: center;">
@@ -260,11 +282,13 @@ export function showSchedule(state) {
         <span style="font-size: 20px; font-weight: 800; color: #f59e0b;">${Math.round(myTotal).toLocaleString()} ₽</span>
       </div>
     </div>`;
+    
   document.getElementById('scheduleModal').style.display = 'flex';
 }
 
 /**
  * Экспорт сформированного графика в формат PDF
+ * Адаптировано под мобильные устройства и десктоп
  */
 export function exportToPDF() {
   const modal = document.getElementById('scheduleModal');
@@ -277,6 +301,7 @@ export function exportToPDF() {
     const body = modalContent.querySelector('.modal-body');
     const hideElements = modalContent.querySelectorAll('.close-modal, .btn-pdf');
     
+    // Прячем элементы управления на время снимка
     hideElements.forEach(el => el.style.opacity = '0');
 
     const originalModalStyle = modalContent.getAttribute('style') || '';
@@ -284,6 +309,7 @@ export function exportToPDF() {
     const originalBodyStyle = body.getAttribute('style') || '';
     const originalModalDisplay = modal.style.backdropFilter;
 
+    // Временная перестройка DOM для качественного рендеринга на мобильном экране
     modal.style.backdropFilter = 'none';
     modalContent.style.width = '400px';
     modalContent.style.height = 'auto';
@@ -315,58 +341,24 @@ export function exportToPDF() {
     };
 
     window.html2pdf().set(opt).from(modalContent).save().then(() => {
+      // Полное восстановление исходного адаптивного UI
+      hideElements.forEach(el => el.style.opacity = '1');
       modalContent.setAttribute('style', originalModalStyle);
       footer.setAttribute('style', originalFooterStyle);
       body.setAttribute('style', originalBodyStyle);
       modal.style.backdropFilter = originalModalDisplay;
-      hideElements.forEach(el => el.style.opacity = '1');
     });
 
   } else {
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '100%';
-    iframe.style.bottom = '100%';
-    iframe.style.width = '450px';
-    document.body.appendChild(iframe);
-
-    const doc = iframe.contentWindow.document;
-    const contentHtml = modalContent.innerHTML;
-
-    doc.open();
-    doc.write(`
-      <html>
-        <head>
-          <style>
-            body { font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; background: white; color: #333; width: 400px; }
-            .close-modal, .btn-pdf { display: none !important; }
-            .modal-header h3 { color: #1e293b; font-size: 18px; margin-bottom: 20px; text-align: center; }
-            .schedule-item { border-bottom: 1px solid #f1f5f9; padding: 12px 0; display: block; clear: both; }
-            .sch-date { font-weight: 800; color: #10b981; font-size: 13px; }
-            .sch-loc { color: #64748b; font-size: 12px; }
-            .sch-cost-detail { font-size: 14px; font-weight: 900; color: #0f172a; float: right; }
-            .sch-guest-money { color: #ef4444; font-weight: 800; margin-top: 4px; font-size: 11px; }
-            .modal-footer-sticky { margin-top: 30px; border-top: 2px solid #f1f5f9; padding-top: 20px; }
-            .summary-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; }
-            .summary-val { font-weight: 900; color: #0f172a; }
-          </style>
-        </head>
-        <body>${contentHtml}</body>
-      </html>
-    `);
-    doc.close();
-
-    setTimeout(() => {
-      const opt = {
-        margin: 10,
-        filename: `Tennis_Schedule_${monthNamesGenitive[monthIdx]}.pdf`,
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-      };
-
-      window.html2pdf().set(opt).from(doc.body).save().then(() => {
-        document.body.removeChild(iframe);
-      });
-    }, 500);
+    // Высококачественный экспорт для Desktop
+    const opt = {
+      margin: 15,
+      filename: `Tennis_Schedule_${monthNamesGenitive[monthIdx]}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2 },
+      jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+    };
+    window.html2pdf().from(modalContent).set(opt).save();
   }
+}
 }
