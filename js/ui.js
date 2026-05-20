@@ -283,19 +283,7 @@ export function showSchedule(state) {
 
 /**
  * Экспорт сформированного графика в формат PDF
- * Адаптировано под мобильные устройства и десктоп
- */
-/**
- * Экспорт сформированного графика в формат PDF
  * Исправлена проблема белого листа на десктопе за счет нормализации контейнера перед снимком
- */
-/**
- * Экспорт сформированного графика в формат PDF
- * Исправлена проблема белого листа и огромных полей на десктопе за счет динамического расчета размера страницы под контент
- */
-/**
- * Экспорт сформированного графика в формат PDF
- * Исправлена проблема пустого листа на десктопе через глубокое клонирование контента в изолированный контейнер
  */
 export function exportToPDF() {
   const modal = document.getElementById('scheduleModal');
@@ -303,72 +291,87 @@ export function exportToPDF() {
   const monthIdx = document.getElementById('monthSelect').value;
   const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
-  // Находим элементы списка и заголовков
-  const scheduleListHtml = document.getElementById('scheduleList').innerHTML;
-  const modalTitleText = document.getElementById('modalTitle').innerText;
-  const summaryBlockHtml = document.getElementById('summaryBlock').innerHTML;
+  // Общие элементы, которые нужно спрятать при генерации (кнопки, крестик закрытия)
+  const footer = modalContent.querySelector('.modal-footer-sticky');
+  const body = modalContent.querySelector('.modal-body');
+  const hideElements = modalContent.querySelectorAll('.close-modal, .btn-pdf');
+  
+  // Прячем кнопки управления на время снимка
+  hideElements.forEach(el => el.style.opacity = '0');
 
-  // Формируем чистый HTML-шаблон для экспорта с жестко вшитыми стилями (чтобы ничего не расползлось)
-  const contentHtml = `
-    <div style="font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; color: #0f172a; width: 420px; box-sizing: border-box; background: #ffffff;">
-      <div style="font-size: 18px; font-weight: 800; margin-bottom: 20px; text-align: center; color: #1e293b; border-bottom: 2px solid #f1f5f9; padding-bottom: 12px;">
-        ${modalTitleText}
-      </div>
-      <div style="display: flex; flex-direction: column; gap: 4px;">
-        ${scheduleListHtml}
-      </div>
-      <div style="margin-top: 10px;">
-        ${summaryBlockHtml}
-      </div>
-    </div>
-  `;
+  // Сохраняем исходные стили UI для последующего восстановления
+  const originalModalStyle = modalContent.getAttribute('style') || '';
+  const originalFooterStyle = footer ? footer.getAttribute('style') || '' : '';
+  const originalBodyStyle = body ? body.getAttribute('style') || '' : '';
+  const originalModalDisplay = modal.style.backdropFilter;
 
-  // Создаем временный невидимый элемент в документе, чтобы html2pdf мог корректно посчитать его высоту
-  const workerWorker = document.createElement('div');
-  workerWorker.style.position = 'absolute';
-  workerWorker.style.left = '-9999px';
-  workerWorker.style.top = '0';
-  workerWorker.style.width = '420px';
-  workerWorker.innerHTML = contentHtml;
-  document.body.appendChild(workerWorker);
+  // Временная нормализация DOM для качественного рендеринга html2canvas
+  modal.style.backdropFilter = 'none';
+  modalContent.style.width = '450px'; // Фиксированная ширина для красивой плотности текста в PDF
+  modalContent.style.height = 'auto';
+  modalContent.style.maxHeight = 'none';
+  modalContent.style.display = 'block';
+  modalContent.style.overflow = 'visible';
+  modalContent.style.boxShadow = 'none';
 
-  // Ждем микросекунду, чтобы браузер отрендерил временный DOM и узнал точную высоту
-  setTimeout(() => {
-    const calculatedHeight = workerWorker.offsetHeight;
+  if (body) {
+    body.style.overflow = 'visible';
+    body.style.height = 'auto';
+    body.style.maxHeight = 'none';
+  }
 
-    if (isMobile) {
-      // Экспорт для смартфонов
-      const opt = {
-        margin: [10, 0, 10, 0],
-        filename: `Tennis_Schedule_${monthNamesGenitive[monthIdx]}.pdf`,
-        image: { type: 'jpeg', quality: 1 },
-        html2canvas: { scale: 2, useCORS: true, logging: false },
-        jsPDF: { unit: 'px', format: [420, calculatedHeight + 30], hotfixes: ['px_scaling'] }
-      };
+  if (footer) {
+    footer.style.position = 'relative'; 
+    footer.style.marginTop = '20px';
+  }
 
-      window.html2pdf().set(opt).from(workerWorker).save().then(() => {
-        document.body.removeChild(workerWorker);
-      });
+  if (isMobile) {
+    // Настройки экспорта для смартфонов (подгонка под экран мобильного)
+    const opt = {
+      margin: [15, 0, 15, 0],
+      filename: `Tennis_Schedule_${monthNamesGenitive[monthIdx]}.pdf`,
+      image: { type: 'jpeg', quality: 1 },
+      html2canvas: { 
+        scale: 2, useCORS: true, logging: false, width: 450, windowWidth: 450,
+        scrollY: -window.scrollY,
+        onclone: (clonedDoc) => {
+          const clonedBtn = clonedDoc.querySelector('.btn-pdf');
+          if (clonedBtn) clonedBtn.style.display = 'none';
+        }
+      },
+      jsPDF: { unit: 'px', format: [450, modalContent.offsetHeight + 80], hotfixes: ['px_scaling'] }
+    };
 
-    } else {
-      // Идеальный экспорт для Десктопа: без полей, без пустых листов, точно под размер данных
-      const opt = {
-        margin: [10, 10, 10, 10], // минимальные аккуратные отступы вокруг контента
-        filename: `Tennis_Schedule_${monthNamesGenitive[monthIdx]}.pdf`,
-        image: { type: 'jpeg', quality: 1 },
-        html2canvas: { 
-          scale: 2, 
-          useCORS: true, 
-          logging: false
-        },
-        // Задаем ширину 440px (420 контент + 20 поля) и точную высоту контента
-        jsPDF: { unit: 'px', format: [440, calculatedHeight + 30], hotfixes: ['px_scaling'] }
-      };
+    window.html2pdf().set(opt).from(modalContent).save().then(() => {
+      restoreUI();
+    });
 
-      window.html2pdf().set(opt).from(workerWorker).save().then(() => {
-        // Удаляем временный контейнер после сохранения
-        document.body.removeChild(workerWorker);
-      });
-    }
-  }, 50);
+  } else {
+    // Высококачественный экспорт для Десктопа (стандартный лист А4 вертикальный)
+    const opt = {
+      margin: [0.5, 0.5, 0.5, 0.5], // аккуратные поля по полдюйма со всех сторон
+      filename: `Tennis_Schedule_${monthNamesGenitive[monthIdx]}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { 
+        scale: 2, 
+        useCORS: true, 
+        logging: false,
+        scrollY: -window.scrollY 
+      },
+      jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+    };
+
+    window.html2pdf().set(opt).from(modalContent).save().then(() => {
+      restoreUI();
+    });
+  }
+
+  // Внутренняя функция для возврата интерфейса в исходное состояние
+  function restoreUI() {
+    hideElements.forEach(el => el.style.opacity = '1');
+    modalContent.setAttribute('style', originalModalStyle);
+    if (footer) footer.setAttribute('style', originalFooterStyle);
+    if (body) body.setAttribute('style', originalBodyStyle);
+    modal.style.backdropFilter = originalModalDisplay;
+  }
 }
