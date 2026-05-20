@@ -289,13 +289,17 @@ export function showSchedule(state) {
  * Экспорт сформированного графика в формат PDF
  * Исправлена проблема белого листа на десктопе за счет нормализации контейнера перед снимком
  */
+/**
+ * Экспорт сформированного графика в формат PDF
+ * Исправлена проблема белого листа и огромных полей на десктопе за счет динамического расчета размера страницы под контент
+ */
 export function exportToPDF() {
   const modal = document.getElementById('scheduleModal');
   const modalContent = document.getElementById('pdfContent');
   const monthIdx = document.getElementById('monthSelect').value;
   const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
-  // Общие элементы, которые нужно спрятать при генерации (кнопки, крестик закрытия)
+  // Элементы управления, которые нужно скрыть при генерации
   const footer = modalContent.querySelector('.modal-footer-sticky');
   const body = modalContent.querySelector('.modal-body');
   const hideElements = modalContent.querySelectorAll('.close-modal, .btn-pdf');
@@ -309,9 +313,9 @@ export function exportToPDF() {
   const originalBodyStyle = body ? body.getAttribute('style') || '' : '';
   const originalModalDisplay = modal.style.backdropFilter;
 
-  // Временная нормализация DOM для качественного рендеринга html2canvas
+  // Подготовка DOM: убираем ограничения скроллов и фиксируем ширину блока
   modal.style.backdropFilter = 'none';
-  modalContent.style.width = '450px'; // Фиксированная ширина для красивой плотности текста в PDF
+  modalContent.style.width = '450px'; 
   modalContent.style.height = 'auto';
   modalContent.style.maxHeight = 'none';
   modalContent.style.display = 'block';
@@ -329,20 +333,27 @@ export function exportToPDF() {
     footer.style.marginTop = '20px';
   }
 
+  // Общие параметры для html2canvas (одинаковые для всех устройств)
+  const canvasOpts = {
+    scale: 2, 
+    useCORS: true, 
+    logging: false, 
+    width: 450, 
+    windowWidth: 450,
+    scrollY: -window.scrollY,
+    onclone: (clonedDoc) => {
+      const clonedBtn = clonedDoc.querySelector('.btn-pdf');
+      if (clonedBtn) clonedBtn.style.display = 'none';
+    }
+  };
+
   if (isMobile) {
-    // Настройки экспорта для смартфонов (подгонка под экран мобильного)
+    // Специфичные настройки для смартфонов
     const opt = {
       margin: [15, 0, 15, 0],
       filename: `Tennis_Schedule_${monthNamesGenitive[monthIdx]}.pdf`,
       image: { type: 'jpeg', quality: 1 },
-      html2canvas: { 
-        scale: 2, useCORS: true, logging: false, width: 450, windowWidth: 450,
-        scrollY: -window.scrollY,
-        onclone: (clonedDoc) => {
-          const clonedBtn = clonedDoc.querySelector('.btn-pdf');
-          if (clonedBtn) clonedBtn.style.display = 'none';
-        }
-      },
+      html2canvas: canvasOpts,
       jsPDF: { unit: 'px', format: [450, modalContent.offsetHeight + 80], hotfixes: ['px_scaling'] }
     };
 
@@ -351,18 +362,14 @@ export function exportToPDF() {
     });
 
   } else {
-    // Высококачественный экспорт для Десктопа (стандартный лист А4 вертикальный)
+    // Исправленный экспорт для Десктопа: страница создается точно под размер контента (поля минимальны)
     const opt = {
-      margin: [0.5, 0.5, 0.5, 0.5], // аккуратные поля по полдюйма со всех сторон
+      margin: [10, 15, 15, 15], // небольшие аккуратные отступы в пикселях [верх, право, низ, лево]
       filename: `Tennis_Schedule_${monthNamesGenitive[monthIdx]}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { 
-        scale: 2, 
-        useCORS: true, 
-        logging: false,
-        scrollY: -window.scrollY 
-      },
-      jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+      image: { type: 'jpeg', quality: 1 },
+      html2canvas: canvasOpts,
+      // Вместо 'letter' жестко задаем ширину 480px (450 контент + 30 поля) и авто-высоту
+      jsPDF: { unit: 'px', format: [480, modalContent.offsetHeight + 60], hotfixes: ['px_scaling'] }
     };
 
     window.html2pdf().set(opt).from(modalContent).save().then(() => {
@@ -370,7 +377,7 @@ export function exportToPDF() {
     });
   }
 
-  // Внутренняя функция для возврата интерфейса в исходное состояние
+  // Возврат интерфейса приложения в исходное состояние
   function restoreUI() {
     hideElements.forEach(el => el.style.opacity = '1');
     modalContent.setAttribute('style', originalModalStyle);
